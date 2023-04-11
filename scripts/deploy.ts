@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+require('dotenv').config();
 
 async function main() {
 
@@ -7,8 +8,10 @@ async function main() {
 
   await ebookNFT.deployed();
 
+  let owner:string = process.env.MARKETPLACE_OWNER_AD!;
+
   const Marketplace = await ethers.getContractFactory("Marketplace");
-  const marketplace = await Marketplace.deploy(ebookNFT.address, "" );
+  const marketplace = await Marketplace.deploy(ebookNFT.address, owner );
 
   await marketplace.deployed();
 

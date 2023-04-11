@@ -1,4 +1,3 @@
-// contracts/GameItems.sol
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.0 <0.9.0;
 
@@ -42,6 +41,7 @@ contract ebookNFT is ERC1155URIStorage, Ownable, ERC2981Base {
     mapping(uint256 => RoyaltyInfo) public authorList;
 
     constructor() ERC1155("https://ipfs.com/123456789/{id}.json") {
+        
     }
 
     /// @notice Get the current id of the nft
@@ -71,10 +71,8 @@ contract ebookNFT is ERC1155URIStorage, Ownable, ERC2981Base {
         return id;
     } 
 
-    //TODO : emit event
-
     /*
-    For opensea
+    TODO : For opensea
     {
         "name": "NFT Contract",
         "description": "Really cool description about my art",

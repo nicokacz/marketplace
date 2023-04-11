@@ -3,6 +3,7 @@ import "@nomiclabs/hardhat-ethers"
 import "@nomiclabs/hardhat-waffle"
 import "@nomiclabs/hardhat-etherscan"
 import "hardhat-gas-reporter";
+import "@nomicfoundation/hardhat-chai-matchers";
 
 import "solidity-coverage"
 import dotenv from "dotenv"
@@ -16,7 +17,7 @@ const {
   ETHERSCAN_GOERLI_API_KEY,
   ETHERSCAN_POLYGON_API_KEY,
   ETHERSCAN_MUMBAI_API_KEY,
-
+  PRIVATE_KEY,
   SIGNER_INDEX,
   SIGNER_GOERLI_INDEX,
   // SIGNER_POLYGON_INDEX,
@@ -56,11 +57,15 @@ export default {
       url: `https://goerli.infura.io/v3/${INFURA_KEY}`,
     },
     mumbai: {
-      accounts: {
-        mnemonic: MNEMONIC,
-        //initialIndex: parseIntFromEnv(SIGNER_MUMBAI_INDEX),
-      },
-      url: `https://polygon-mumbai.infura.io/v3/${INFURA_KEY}`,
+      // accounts: {
+      //   //mnemonic: MNEMONIC || DEFAULT_MNEMONIC,
+      //   accounts: [process.env.PRIVATE_KEY]
+      //   //initialIndex: parseIntFromEnv(SIGNER_MUMBAI_INDEX),
+      // },
+      
+      url: "https://rpc-mumbai.maticvigil.com",
+      accounts: [process.env.PRIVATE_KEY]
+      //url: `https://polygon-mumbai.infura.io/v3/${INFURA_KEY}`,
     },
   },
   mocha: {
