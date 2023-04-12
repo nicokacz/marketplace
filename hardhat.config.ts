@@ -1,9 +1,6 @@
 import "@typechain/hardhat"
-import "@nomiclabs/hardhat-ethers"
-import "@nomiclabs/hardhat-waffle"
-import "@nomiclabs/hardhat-etherscan"
-import "hardhat-gas-reporter";
 import "@nomicfoundation/hardhat-chai-matchers";
+import "@nomicfoundation/hardhat-toolbox";
 
 import "solidity-coverage"
 import dotenv from "dotenv"
@@ -22,6 +19,7 @@ const {
   SIGNER_GOERLI_INDEX,
   // SIGNER_POLYGON_INDEX,
   SIGNER_MUMBAI_INDEX,
+  MARKETPLACE_OWNER_AD,
 } = process.env
 
 import { extendEnvironment, task } from "hardhat/config"

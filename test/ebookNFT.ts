@@ -5,9 +5,6 @@ import { ethers } from "hardhat";
 import { Marketplace__factory, RentContract__factory } from "../typechain-types";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
-//import "@nomiclabs/hardhat-waffle"
-//var chai = require('chai');
-//chai.use(require('chai-bignumber')(ethers.BigNumber));
 
 async function main() {
     
@@ -22,6 +19,7 @@ describe("ebookNFT & Marketplace tests", async function () {
 
     let Marketplace: Marketplace__factory;
     let RentContract: RentContract__factory;
+    //let EbookNFT: EbookNFT__factory;
 
     let ads: any[] = [];
 
@@ -34,9 +32,10 @@ describe("ebookNFT & Marketplace tests", async function () {
     this.beforeAll(async function() {
         // This is executed before each test
         // Deploying the smart contract
+        
         const EbookNFT = await ethers.getContractFactory("ebookNFT");
         ebookNFT = await EbookNFT.deploy();
-
+       
         Marketplace = await ethers.getContractFactory("Marketplace");
         
         RentContract = await ethers.getContractFactory("rentContract");
@@ -50,6 +49,8 @@ describe("ebookNFT & Marketplace tests", async function () {
         renter = ads[3];
         tenant = ads[4];
     })
+
+    
 
     it("NFT is minted successfully", async function() {
         
@@ -66,18 +67,21 @@ describe("ebookNFT & Marketplace tests", async function () {
         balance = await ebookNFT.balanceOf(owner.address, 1);
         expect(balance.toNumber()).to.equal(1000);
 
-        marketplace  = await Marketplace.deploy(ebookNFT.address, marketplaceAd.address);
+        //console.log(marketplace.address);
+        const ebookNFTAddress = ebookNFT.address;
+        
+        marketplace  = await Marketplace.deploy(ebookNFTAddress, marketplaceAd.address);
+        const marketplaceAddress = marketplace.address;
+        const tx2 = await ebookNFT.connect(owner).setApprovalForAll(marketplaceAddress, true);
 
-        const tx2 = await ebookNFT.connect(owner).setApprovalForAll(marketplace.address, true);
-
-        const tx3 = await ebookNFT.connect(renter).setApprovalForAll(marketplace.address, true);
+        const tx3 = await ebookNFT.connect(renter).setApprovalForAll(marketplaceAddress, true);
 
         //console.log(await ebookNFT.isApprovedForAll(owner.address, marketplace.address ));
         //give approval to marketplace from owner
-        expect(await ebookNFT.isApprovedForAll(owner.address, marketplace.address ), "owner approval failed").to.equal(true);
+        expect(await ebookNFT.isApprovedForAll(owner.address, marketplaceAddress ), "owner approval failed").to.equal(true);
 
         //give approval to marketplace from renter
-        expect(await ebookNFT.isApprovedForAll(renter.address, marketplace.address ), "renter approval failed").to.equal(true);
+        expect(await ebookNFT.isApprovedForAll(renter.address, marketplaceAddress ), "renter approval failed").to.equal(true);
     })
 
     it("NFT is list in marketplace successfully", async function() {
@@ -135,6 +139,7 @@ describe("ebookNFT & Marketplace tests", async function () {
         // Check the marketplace fees
         //console.log(marketplaceAdBalanceBefore, marketplaceAdBalanceAfter, marketplaceAdBalanceAfter.sub(marketplaceAdBalanceBefore));
         let marketplaceFees = marketplaceAdBalanceAfter.sub(marketplaceAdBalanceBefore);
+        
         let fee = ethers.BigNumber.from(10000000000000 * 0.02);
         // 10% royalties + 2% marketplace fees
         expect(marketplaceFees.toNumber(), "marketplaceFees issue").to.equal(fee.toNumber());
@@ -214,10 +219,12 @@ describe("ebookNFT & Marketplace tests", async function () {
         // let tenant = ads[2];
 
         let nftId = 1;
+        const ebookNFTAddress = ebookNFT.address;
+        const marketplaceAddress = marketplace.address;
 
         // list rent, rent and cancel rent offer from marketplace
         let balanceBefore = await ebookNFT.balanceOf(renter.address, 1);
-        let balanceMrkBefore = await ebookNFT.balanceOf(marketplace.address, 1);
+        let balanceMrkBefore = await ebookNFT.balanceOf(marketplaceAddress, 1);
         // listNftForRent(uint256 _nftId, uint256 _price, uint256 _end)
         const tx3 = await marketplace.connect(renter).listNftForRent(1, 10000000000000, 100);
         let nbOffer = await marketplace.nbOfferRent();
@@ -226,7 +233,7 @@ describe("ebookNFT & Marketplace tests", async function () {
         let balance = await ebookNFT.balanceOf(renter.address, 1);
         expect(balance.sub(balanceBefore) == -1);
 
-        let balanceMrk = await ebookNFT.balanceOf(marketplace.address, 1);
+        let balanceMrk = await ebookNFT.balanceOf(marketplaceAddress, 1);
         expect(balanceMrk.sub(balanceMrkBefore) == 1);
     });
 
@@ -238,11 +245,13 @@ describe("ebookNFT & Marketplace tests", async function () {
         // let tenant = ads[3];
         
         // let nftId = 1;
+        const ebookNFTAddress = await ebookNFT.address;
+        const marketplaceAddress = await marketplace.address;
 
         let nbOffer = await marketplace.nbOfferRent();
         expect(nbOffer.toNumber(), "Marketplace has no offer").to.equal(1);
 
-        let balanceMrk = await ebookNFT.balanceOf(marketplace.address, 1);
+        let balanceMrk = await ebookNFT.balanceOf(marketplaceAddress, 1);
         expect(balanceMrk, "Marketplace has no NFT").to.be.gte(1);
         
         //console.log(await marketplace.marketItem(0));
