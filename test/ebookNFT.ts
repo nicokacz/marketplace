@@ -39,8 +39,8 @@ describe("ebookNFT & Marketplace tests", async function () {
        
         Marketplace = await ethers.getContractFactory("Marketplace");
         
-        RentContract = await ethers.getContractFactory("rentContract");
-
+        RentContract = await ethers.getContractFactory("rentContract") as RentContract__factory;
+        
         ads = await ethers.getSigners();
 
         owner = ads[0];
