@@ -3,7 +3,6 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "./ebookNFT.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title Contrat to rent an NFT,
@@ -12,10 +11,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 /// @dev All function calls are currently implemented without side effects
 contract  rentContract is ERC1155Holder, Ownable {
     ebookNFT private nftContract;
-    uint256 blockend;
-    uint256 nftId;
-    address renter;
-    address tenant;
+    uint256 public blockend;
+    uint256 public nftId;
+    address public renter;
+    address public tenant;
     uint256 end;
     uint256 price;
 
@@ -43,19 +42,27 @@ contract  rentContract is ERC1155Holder, Ownable {
         end = _end;
     }
 
-    function startRent() onlyOwner external {
+    event rentStart(address contractAddress, address renter, address tenant, uint256 nftId,uint256 end, uint256 blockend);
+
+    function startRent() onlyOwner external returns (uint256){
         //check that the lender has at least one NFT to rent
-        require(nftContract.balanceOf(address(this), nftId) >= 1, "Cannot startRent : the contract don't have NFT");
+        require(nftContract.balanceOf(address(this), nftId) == 1, "Cannot start rent : the contract doesn't have NFT");
         blockend = block.timestamp + end;
+
+        emit rentStart(address(this), renter, tenant, nftId, end, blockend);
+        return blockend;
     }
 
+    event rentStop(address renter, address tenant, uint256 nftId, uint256 blockend,uint256 blockendTimestamp);
 
     function stopRent() external {
+        require(nftContract.balanceOf(address(this), nftId) == 1, "Cannot stop rent : the contract doesn't have NFT");
         //check that the lender has at least one NFT to rent
         // check blockend = block.timestamp + end;
         require(blockend <= block.timestamp, "Renting period not over");
         nftContract.safeTransferFrom(address(this), renter, nftId, 1, "");
 
+        emit rentStop(renter, tenant, nftId, blockend, block.timestamp);
     }
     
 }

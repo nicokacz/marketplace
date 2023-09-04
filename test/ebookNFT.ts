@@ -5,6 +5,7 @@ import { ethers } from "hardhat";
 import { Marketplace__factory, RentContract__factory } from "../typechain-types";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
+//@ts-check
 
 async function main() {
     
@@ -89,10 +90,11 @@ describe("ebookNFT & Marketplace tests", async function () {
         // let marketplaceAd = ads[1];
 
         const tx3 = await marketplace.connect(owner).listNft(1, 1, 10000000000000);
+        const tx4 = await marketplace.connect(owner).listNft(1, 1, 10000000000000);
         let nbOffer = await marketplace.nbOffer();
-        expect(nbOffer.toNumber()).to.equal(1);
+        expect(nbOffer.toNumber()).to.equal(2);
         let balance = await ebookNFT.balanceOf(owner.address, 1);
-        expect(balance.toNumber()).to.equal(999);
+        expect(balance.toNumber()).to.equal(998);
     });
 
     it("Offer in marketplace cancelled successfully", async function() {
@@ -100,6 +102,7 @@ describe("ebookNFT & Marketplace tests", async function () {
         // let marketplaceAd = ads[1];
 
         const tx4 = await marketplace.connect(owner).cancelBuyOffer(1);
+        const tx5 = await marketplace.connect(owner).cancelBuyOffer(1);
         let nbOffer = await marketplace.nbOffer();
         expect(nbOffer.toNumber()).to.equal(0);
 
@@ -108,7 +111,7 @@ describe("ebookNFT & Marketplace tests", async function () {
 
     });
 
-    it("Buy an NFT from the marketplace successfully", async function() {
+    it("Buy an NFT from the marketplace with one offer only successfully", async function() {
         // let owner = ads[0];
         // let marketplaceAd = ads[1];
         // let author = ads[2];
@@ -131,7 +134,7 @@ describe("ebookNFT & Marketplace tests", async function () {
         let buyerBalanceBefore = await buyer.getBalance();
         let authorBalanceBefore = await author.getBalance();
 
-        const tx5 = await marketplace.connect(buyer).buyNFT(2, 1, {value: 10000000000000} );
+        const tx5 = await marketplace.connect(buyer).buyNFT(1, 1, {value: 10000000000000} );
 
         let ownerBalanceAfter = await owner.getBalance();
         let marketplaceAdBalanceAfter = await marketplaceAd.getBalance();
@@ -169,6 +172,75 @@ describe("ebookNFT & Marketplace tests", async function () {
 
         //Check the royalties
         let royaltyFeesExpected = ethers.BigNumber.from(10000000000000 * 0.1);
+        let royaltyFees = authorBalanceAfter.sub(authorBalanceBefore);
+        expect(royaltyFees.toNumber(), "royaltyFees issue").to.equal(royaltyFeesExpected.toNumber());
+
+    });
+
+    it("Buy 2 NFTs from the marketplace with multiples offers successfully", async function() {
+        // let owner = ads[0];
+        // let marketplaceAd = ads[1];
+        // let author = ads[2];
+        let buyer = ads[4];
+        
+        const tx3 = await marketplace.connect(owner).listNft(1, 1, 10000000000000);
+        const tx4 = await marketplace.connect(owner).listNft(1, 1, 10000000000000);
+        const tx6 = await marketplace.connect(owner).listNft(1, 1, 10000000000000);
+        let nbOffer = await marketplace.nbOffer();
+        expect(nbOffer.toNumber()).to.equal(3);
+
+        let balance = await ebookNFT.balanceOf(owner.address, 1);
+        expect(balance.toNumber(), "list ok").to.equal(996);
+
+        balance = await ebookNFT.balanceOf(buyer.address, 1);
+        expect(balance.toNumber()).to.equal(0);
+
+        //console.log(await marketplace.marketItem(0));
+        //console.log(await marketplaceAd.getBalance());
+        let marketplaceAdBalanceBefore = await marketplaceAd.getBalance();
+        let ownerBalanceBefore = await owner.getBalance();
+        let buyerBalanceBefore = await buyer.getBalance();
+        let authorBalanceBefore = await author.getBalance();
+
+        const tx5 = await marketplace.connect(buyer).buyNFT(1, 1, {value: 10000000000000} );
+        const tx7 = await marketplace.connect(buyer).buyNFT(1, 1, {value: 10000000000000} );
+
+        let ownerBalanceAfter = await owner.getBalance();
+        let marketplaceAdBalanceAfter = await marketplaceAd.getBalance();
+
+        // Check the marketplace fees
+        //console.log(marketplaceAdBalanceBefore, marketplaceAdBalanceAfter, marketplaceAdBalanceAfter.sub(marketplaceAdBalanceBefore));
+        let marketplaceFees = marketplaceAdBalanceAfter.sub(marketplaceAdBalanceBefore);
+        
+        let fee = ethers.BigNumber.from(20000000000000 * 0.02);
+        // 10% royalties + 2% marketplace fees
+        expect(marketplaceFees.toNumber(), "marketplaceFees issue").to.equal(fee.toNumber());
+
+        let balanceAfter = await ebookNFT.balanceOf(buyer.address, 1);
+        expect(balanceAfter.toNumber()).to.equal(2);
+        let buyerBalanceAfter = await buyer.getBalance();
+        let authorBalanceAfter = await author.getBalance();
+
+        nbOffer = await marketplace.nbOffer();
+        expect(nbOffer.toNumber()).to.equal(1);
+
+        //Check the owner fees
+        //console.log(ownerBalanceBefore, ownerBalanceAfter, ownerBalanceAfter.sub(ownerBalanceBefore));
+        let ownerFees = ownerBalanceAfter.sub(ownerBalanceBefore);
+
+        let ownerFeesExpected = ethers.BigNumber.from(20000000000000 * (1 - 0.1 - 0.02));
+        // 10% royalties + 2% marketplace fees
+        expect(ownerFees.toNumber(), "ownerFees issue").to.equal(ownerFeesExpected.toNumber());
+
+        //console.log(buyerBalanceBefore, buyerBalanceAfter, buyerBalanceBefore.sub(buyerBalanceAfter));
+        //console.log(authorBalanceBefore, authorBalanceAfter, authorBalanceAfter.sub(authorBalanceBefore));
+
+        let buyerFees = buyerBalanceBefore - buyerBalanceAfter;
+        //Buyer balance after buying has to be lower than before
+        expect(buyerFees, "Buyer balance issue").to.gt(10000000000000);
+
+        //Check the royalties
+        let royaltyFeesExpected = ethers.BigNumber.from(20000000000000 * 0.1);
         let royaltyFees = authorBalanceAfter.sub(authorBalanceBefore);
         expect(royaltyFees.toNumber(), "royaltyFees issue").to.equal(royaltyFeesExpected.toNumber());
 
@@ -267,8 +339,8 @@ describe("ebookNFT & Marketplace tests", async function () {
         //function rentNFT(uint256 _offerId) public payable {
         const tx5 = await marketplace.connect(tenant).rentNFT(1, {value: 10000000000000} );
         const receipt = await tx5.wait();
-        //console.log(receipt.events[2].args["rentingContract"]);
-        rentingContractAd = receipt.events[2].args["rentingContract"];
+        //console.log(receipt.events[2]);
+        rentingContractAd = receipt.events[2].address;
         let balanceRC = await ebookNFT.balanceOf(rentingContractAd, 1);
         expect(balanceRC, "ok").to.be.gte(1);
 
