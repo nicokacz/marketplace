@@ -5,13 +5,14 @@ pragma abicoder v2;
 import "./ebookNFT.sol"; 
 import "./rentContract.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /// @title A NFT Marketplace using ERC1155,
 /// @author nicokacz
 /// @notice You can use this contract to list NFT on Marketplace
 /// @dev All function calls are currently implemented without side effects
-contract  Marketplace is ERC1155Holder {
+contract Marketplace is ERC1155HolderUpgradeable, ReentrancyGuard {
     using Counters for Counters.Counter;
     ebookNFT private nftContract;
     address private owner;
@@ -66,7 +67,7 @@ contract  Marketplace is ERC1155Holder {
     /// @param _nftId the token Id of the nft
     /// @param _amount The amount of NFT to be listed 
     /// @param _price The price of the NFT in wei    
-    function listNft(uint256 _nftId, uint256 _amount, uint256 _price) external {
+    function listNft(uint256 _nftId, uint256 _amount, uint256 _price) external nonReentrant {
         require(_nftId >= 0, "NFT doesnt exist");
         require(_nftId <= nftContract.getEbookId(), "NFT does not exist");
         require(_price >= 10000000000000, "Price has to be greater or equal than 0.00001 ETH");
@@ -95,7 +96,7 @@ contract  Marketplace is ERC1155Holder {
     /// @param _offerId The id of the offer to buy    
     /// @param _amount The amount of NFT to be buyed 
     /// @dev User will able to buy NFT and transfer to respectively owner or user and platform fees, roylty fees also deducted          from this function.
-    function buyNFT(uint256 _offerId, uint256 _amount) public payable {
+    function buyNFT(uint256 _offerId, uint256 _amount) public payable nonReentrant {
         require(_offerId >= 1, "Offer doesnt exist");
         require(_offerId <= nbOffer.current(), "Offer does not exist");
         require(marketItem[_offerId].amount >= 1, "No more NFT to sell");
@@ -144,7 +145,7 @@ contract  Marketplace is ERC1155Holder {
     /// @notice It will cancel the $offerId of to marketplace.
     /// @dev It will remove the offer from the market place.   
     /// @param _offerId The id of the offer to be cancelled
-    function cancelBuyOffer(uint256 _offerId) external {
+    function cancelBuyOffer(uint256 _offerId) external nonReentrant {
         require(_offerId >= 1, "Offer doesnt exist");
         require(_offerId <= nbOffer.current(), "Offer doesnt exist");
         require(marketItem[_offerId].seller == msg.sender, "You are not the seller");
@@ -174,7 +175,7 @@ contract  Marketplace is ERC1155Holder {
     /// @param _nftId the token Id of the nft
     /// @param _price The price of the NFT in wei
     /// @param _end Number of block before the end of the rent     
-    function listNftForRent(uint256 _nftId, uint256 _price, uint256 _end) external {
+    function listNftForRent(uint256 _nftId, uint256 _price, uint256 _end) external nonReentrant {
         require(_nftId >= 0, "NFT doesnt exist");
         require(_nftId <= nftContract.getEbookId(), "NFT does not exist");
         require(_price >= 10000000000000, "Price has to be greater or equal than 0.00001 ETH");
@@ -206,7 +207,7 @@ contract  Marketplace is ERC1155Holder {
     /// @notice It will rent an NFT of the $offerId from marketplace.
     /// @param _offerId The id of the offer to rent    
     /// @dev User will able to rent NFT and transfer to respectively owner or user and platform fees, roylty fees also deducted from this function.
-    function rentNFT(uint256 _offerId) public payable {
+    function rentNFT(uint256 _offerId) public payable nonReentrant {
         require(_offerId >= 1, "Offer doesnt exist");
         require(_offerId <= nbOfferRent.current(), "Offer does not exist");
         require(marketItemToRent[_offerId].offerId == _offerId, "Offer doesnt exist anymore");
@@ -259,7 +260,7 @@ contract  Marketplace is ERC1155Holder {
     /// @notice It will cancel the $offerId of to marketplace.
     /// @dev It will remove the offer from the market place.   
     /// @param _offerId The id of the offer to be cancelled
-    function cancelRentOffer(uint256 _offerId) external {
+    function cancelRentOffer(uint256 _offerId) external nonReentrant {
         require(_offerId > 0, "Offer doesnt exist");
         require(_offerId <= nbOfferRent.current(), "Offer doesnt exist");
         require(marketItemToRent[_offerId].renter == msg.sender, "You are not the renter");
