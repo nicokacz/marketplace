@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/utils/introspection/ERC165.sol';
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 interface IERC2981Royalties {
     function royaltyInfo(uint256 _id, uint256 _value)
@@ -16,8 +17,8 @@ interface IERC2981Royalties {
 /// @dev This is a contract used to add ERC2981 support to ERC721 and 1155
 abstract contract ERC2981Base is ERC165, IERC2981Royalties {
     struct RoyaltyInfo {
-        address recipient;
-        uint24 amount;
+        address recipient;  // 20 bytes
+        uint24 amount;     // 3 bytes
     }
 
     /// @inheritdoc ERC165
@@ -34,14 +35,20 @@ abstract contract ERC2981Base is ERC165, IERC2981Royalties {
     }
 }
 
-contract ebookNFT is ERC1155URIStorage, Ownable, ERC2981Base {
+contract ebookNFT is ERC1155URIStorage, Ownable, ERC2981Base, ReentrancyGuard {
     using Counters for Counters.Counter;
     
     Counters.Counter private _ebookIdTracker;
     mapping(uint256 => RoyaltyInfo) public authorList;
 
+    // Constants
+    uint24 private constant MAX_ROYALTY = 9000; // 90% in basis points
+    
+    // Events
+    event EbookMinted(uint256 indexed tokenId, address indexed author, uint256 amount, uint24 royalty);
+    event RoyaltySet(uint256 indexed tokenId, address indexed author, uint24 royalty);
+
     constructor() ERC1155("https://ipfs.com/123456789/{id}.json") {
-        
     }
 
     /// @notice Get the current id of the nft
@@ -50,73 +57,75 @@ contract ebookNFT is ERC1155URIStorage, Ownable, ERC2981Base {
         return _ebookIdTracker.current();
     }
 
-    /// @notice Mint $amount of the nft describe with metadata json file $tokenURI, with $royalty to be paid to the $author
-    /// @return id of the nft freshly minted
-    /// @param royalty Royalty is in percent so 100 = 100% , 1 = 1% etc
+    /// @notice Mint new ebooks with royalty configuration
+    /// @param amount Amount of tokens to mint
+    /// @param tokenURI URI for the token metadata
+    /// @param royalty Royalty percentage (0-100)
+    /// @param author Address to receive royalties
+    /// @return id Token ID of the minted ebook
     function safeMint(
         uint256 amount,
-        string memory tokenURI,
+        string calldata tokenURI,
         uint24 royalty,
         address payable author
-    ) public onlyOwner returns(uint256) {
+    ) public onlyOwner nonReentrant returns(uint256) {
         require(royalty <= 100, 'ERC2981Royalties: Too high');
-        require(royalty >= 0, 'ERC2981Royalties: Too low');
-        require(amount > 0, 'At least create one NFT please... :)');
+        require(amount > 0, 'Invalid amount');
 
+        uint256 id = _ebookIdTracker.current() + 1;
         _ebookIdTracker.increment();
-        uint256 id = _ebookIdTracker.current();
-        _setRoyalties(author, id, royalty*100);
+        
+        // Convert percentage to basis points (multiply by 100)
+        uint24 basisPoints = royalty * 100;
+        _setRoyalties(author, id, basisPoints);
+        
         _mint(msg.sender, id, amount, "");
         _setURI(id, tokenURI);
+        
+        emit EbookMinted(id, author, amount, royalty);
         return id;
-    } 
-
-    /*
-    TODO : For opensea
-    {
-        "name": "NFT Contract",
-        "description": "Really cool description about my art",
-        "image": "https://openseacreatures.io/image.png", # Link to collection image
-        "external_link": "https://openseacreatures.io", # Link to website
-        "seller_fee_basis_points": 100, # Indicates a 1% seller fee.
-        "fee_recipient": "0xA97F337c39cccE66adfeCB2BF99C1DdC54C2D721" # Where seller fees will be paid to.
     }
 
-    
-    function contractURI() public view returns (string memory) {
-        return "https://metadata-url.com/my-metadata";
-    }
-    
-    function mint( address to, uint256 id, uint256 amount) public onlyOwner {
-        _mint(to, id, amount, "");
-    }
-    function burn( address from, uint256 id, uint256 amount) public {
-        require(msg.sender == from);
-        _burn(from, id, amount);
-    }*/
-    
-    // Royalty is in basis points so 10000 = 100% , 100 = 1% etc
-    function _setRoyalties(address author,uint256 ebookId, uint24 royalty) internal {
-        require(royalty <= 10000, 'ERC2981Royalties: Too high');
-        require(royalty >= 0, 'ERC2981Royalties: Too low');
-        require(ebookId >= 0, "NFT doesnt exist");
-        require(ebookId <= getEbookId(), "NFT does not exist");
+    /// @notice Set royalties for a token
+    /// @dev Internal function to set royalty information
+    /// @param author Address to receive royalties
+    /// @param ebookId Token ID
+    /// @param royalty Royalty amount in basis points
+    function _setRoyalties(
+        address author,
+        uint256 ebookId,
+        uint24 royalty
+    ) internal {
+        require(royalty <= MAX_ROYALTY, 'ERC2981Royalties: Too high');
+        require(ebookId > 0 && ebookId <= getEbookId(), "Invalid ebook ID");
+        require(author != address(0), "Invalid author address");
 
-        authorList[ebookId] = RoyaltyInfo(author, uint24(royalty));
+        authorList[ebookId] = RoyaltyInfo(author, royalty);
+        emit RoyaltySet(ebookId, author, royalty);
     }
 
-    function royaltyInfo(uint256 ebookId, uint256 value)
-        external
-        view
-        override
-        returns (address receiver, uint256 royaltyAmount)
-    {
-        RoyaltyInfo memory royalties = authorList[ebookId];
-        receiver = royalties.recipient;
-        royaltyAmount = (value * royalties.amount) / 10000;
+    /// @notice Get royalty information for a token sale
+    /// @param ebookId Token ID
+    /// @param value Sale price
+    /// @return receiver Address to receive royalties
+    /// @return royaltyAmount Amount of royalties to pay
+    function royaltyInfo(
+        uint256 ebookId,
+        uint256 value
+    ) external view override returns (
+        address receiver,
+        uint256 royaltyAmount
+    ) {
+        RoyaltyInfo storage royalties = authorList[ebookId];
+        return (
+            royalties.recipient,
+            (value * royalties.amount) / MAX_ROYALTY
+        );
     }
     
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155, ERC2981Base) returns (bool) {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC1155, ERC2981Base) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }
