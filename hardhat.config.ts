@@ -14,6 +14,7 @@ const {
   ETHERSCAN_GOERLI_API_KEY,
   ETHERSCAN_POLYGON_API_KEY,
   ETHERSCAN_MUMBAI_API_KEY,
+  ETHERSCAN_BASE_API_KEY,
   PRIVATE_KEY,
   SIGNER_INDEX,
   SIGNER_GOERLI_INDEX,
@@ -38,7 +39,15 @@ export default {
   },
   solidity: {
     version: "0.8.17",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200
+      },
+      viaIR: true
+    }
   },
+  
   networks: {
     mainnet: {
       accounts: {
@@ -65,13 +74,35 @@ export default {
       accounts: [process.env.PRIVATE_KEY]
       //url: `https://polygon-mumbai.infura.io/v3/${INFURA_KEY}`,
     },
+    // for mainnet
+    basemainnet: {
+      url: 'https://mainnet.base.org',
+      accounts: [process.env.PRIVATE_KEY as string],
+      gasPrice: 1000000000,
+    },
+    // for testnet
+    basesepolia: {
+      url: 'https://sepolia.base.org',
+      accounts: [process.env.PRIVATE_KEY as string],
+      gasPrice: 1000000000,
+    }
   },
   mocha: {
     timeout: 2000000,
   },
   etherscan: {
-    apiKey: etherscanApiKeyFromEnv(),
-  },
+    apiKey: process.env.ETHERSCAN_BASE_API_KEY,
+    customChains: [
+      {
+        network: "baseSepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api-sepolia.basescan.org/api",
+          browserURL: "https://sepolia.basescan.org"
+        }
+      }
+    ]
+  }
 }
 
 extendEnvironment((env: any) => {
@@ -134,6 +165,10 @@ function etherscanApiKeyFromEnv() {
       break
     case "polygon":
       apiKey = ETHERSCAN_POLYGON_API_KEY || ETHERSCAN_API_KEY
+      break
+    case "basesepolia":
+        apiKey =
+        ETHERSCAN_BASE_API_KEY
       break
     case "mumbai":
       apiKey =

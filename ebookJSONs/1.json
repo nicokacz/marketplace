@@ -1,0 +1,25 @@
+{
+    "id": "1",
+    "name": "Alice's Adventures in Wonderland",
+    "description": "Alice's Adventures in Wonderland (also known as Alice in Wonderland) is an 1865 English children's novel. It details the story of a girl named Alice who falls through a rabbit hole into a fantasy world of anthropomorphic creatures. It is seen as an example of the literary nonsense genre.",
+    "image": "https://pink-crooked-grouse-531.mypinata.cloud/ipfs/bafybeibqjge3xxrc2wbtna2x35t7bko6s4p3rfrpy5dyj4kvslgwdj2wu4",
+    "attributes": [
+        {
+            "trait_type": "chapter", 
+            "value": 12
+        },
+        {
+            "trait_type": "lang", 
+            "value": "english"
+        },
+        {
+            "trait_type": "author", 
+            "value": "Lewis Carroll"
+        },
+        {
+            "display_type": "date", 
+            "trait_type": "edition date", 
+            "value": -3313440000
+        }
+    ]
+}
