@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
-pragma abicoder v2;
 
 import "./ebookNFT.sol"; 
 import "./rentContract.sol";
@@ -14,20 +13,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 /// @dev All function calls are currently implemented without side effects
 contract Marketplace is ERC1155HolderUpgradeable, ReentrancyGuard {
     using Counters for Counters.Counter;
-    ebookNFT private nftContract;
-    address private owner;
-    address payable marketPlace;
-    uint8 private platformFee = 2;// in percent
-    uint8 private deno = 100;
-    Counters.Counter public nbOffer;
-    mapping(uint256 => NFTMarketItem) public marketItem;
-
-    //Rent    
-    Counters.Counter public nbOfferRent;
-    mapping(uint256 => NFTMarketItemToRent) public marketItemToRent;
-
-    struct NFTMarketItem{
-        //uint256 offerId;
+    
+    struct NFTMarketItem {
         uint256 nftId;
         uint256 amount;
         uint256 price;
@@ -35,7 +22,7 @@ contract Marketplace is ERC1155HolderUpgradeable, ReentrancyGuard {
         address payable owner;
     }
 
-    struct NFTMarketItemToRent{
+    struct NFTMarketItemToRent {
         uint256 offerId;
         uint256 nftId;
         uint256 end;
@@ -43,6 +30,18 @@ contract Marketplace is ERC1155HolderUpgradeable, ReentrancyGuard {
         address payable renter;
         address payable tenant;
     }
+
+    ebookNFT private nftContract;
+    address private owner;
+    address payable marketPlace;
+    uint8 private constant PLATFORM_FEE = 2; // in percent
+    uint8 private constant DENO = 100;
+    
+    Counters.Counter public nbOffer;
+    Counters.Counter public nbOfferRent;
+    
+    mapping(uint256 => NFTMarketItem) public marketItem;
+    mapping(uint256 => NFTMarketItemToRent) public marketItemToRent;
 
     constructor(address _nftContract, address _owner) {
         nftContract = ebookNFT(_nftContract); // import the contract of your nft first
@@ -79,7 +78,6 @@ contract Marketplace is ERC1155HolderUpgradeable, ReentrancyGuard {
         uint256 offerId = nbOffer.current();
 
         marketItem[offerId] = NFTMarketItem(
-            //offerId,
             _nftId,
             _amount,
             _price,
@@ -97,46 +95,36 @@ contract Marketplace is ERC1155HolderUpgradeable, ReentrancyGuard {
     /// @param _amount The amount of NFT to be buyed 
     /// @dev User will able to buy NFT and transfer to respectively owner or user and platform fees, roylty fees also deducted          from this function.
     function buyNFT(uint256 _offerId, uint256 _amount) public payable nonReentrant {
-        require(_offerId >= 1, "Offer doesnt exist");
-        require(_offerId <= nbOffer.current(), "Offer does not exist");
-        require(marketItem[_offerId].amount >= 1, "No more NFT to sell");
-        require(marketItem[_offerId].amount >= _amount, "No enough NFT to sell");
-        require((msg.value) >= (marketItem[_offerId].price * _amount), "Invalid value send");
-        require(_amount <= nftContract.balanceOf(address(this), marketItem[_offerId].nftId), "The marketplace has not enough NFT");
+        require(
+            _offerId >= 1 &&
+            _offerId <= nbOffer.current() &&
+            marketItem[_offerId].amount >= _amount,
+            "Invalid offer or amount"
+        );
+        require(msg.value >= (marketItem[_offerId].price * _amount), "Invalid value");
+        require(
+            _amount <= nftContract.balanceOf(address(this), marketItem[_offerId].nftId),
+            "Insufficient NFT balance"
+        );
 
         uint256 nftId = marketItem[_offerId].nftId;
-        (address authorAddress, uint256 royaltyPer) = nftContract.royaltyInfo(nftId, msg.value );
-        //                = (msg.value * platformFee / deno) * _amount;
-        uint256 marketFee = (((msg.value * platformFee) /deno) * _amount);
+        (address authorAddress, uint256 royaltyPer) = nftContract.royaltyInfo(nftId, msg.value);
+        uint256 marketFee = ((msg.value * PLATFORM_FEE) / DENO) * _amount;
         address payable seller = marketItem[_offerId].seller;
 
-        // Price without royalty and fee
-        (bool sent, bytes memory data) = seller.call{value: (((msg.value - royaltyPer)- marketFee))}("");
-        require(sent, "Failed to send fee to seller");
-
-        // Royalties for Author
-        (sent, data) = payable(authorAddress).call{value: royaltyPer}("");
-        require(sent, "Failed to send fee to author");
-
-        // Market place
-        (sent, data) = marketPlace.call{value: marketFee}("");
-        require(sent, "Failed to send fee to marketplace");
+        _processPayments(seller, authorAddress, msg.value - royaltyPer - marketFee, royaltyPer, marketFee);
 
         marketItem[_offerId].owner = payable(msg.sender);
         marketItem[_offerId].amount = marketItem[_offerId].amount - _amount;
 
-        //No more item to sell in this offer, delete it
-        if(marketItem[_offerId].amount == 0){
-
-            if(nbOffer.current() > 1){
-                //delete actual offer with the last one
+        if(marketItem[_offerId].amount == 0) {
+            if(nbOffer.current() > 1) {
                 marketItem[_offerId] = marketItem[nbOffer.current()];
             }
             nbOffer.decrement();
         }
         
         nftContract.safeTransferFrom(address(this), msg.sender, nftId, _amount, "");
-
         emit NFTBuy(_offerId, nftId, authorAddress, royaltyPer);
     }
 
@@ -208,52 +196,63 @@ contract Marketplace is ERC1155HolderUpgradeable, ReentrancyGuard {
     /// @param _offerId The id of the offer to rent    
     /// @dev User will able to rent NFT and transfer to respectively owner or user and platform fees, roylty fees also deducted from this function.
     function rentNFT(uint256 _offerId) public payable nonReentrant {
-        require(_offerId >= 1, "Offer doesnt exist");
-        require(_offerId <= nbOfferRent.current(), "Offer does not exist");
-        require(marketItemToRent[_offerId].offerId == _offerId, "Offer doesnt exist anymore");
-        require((msg.value) >= marketItemToRent[_offerId].price, "Invalid value send. Bad price.");
-        require(nftContract.balanceOf(address(this), marketItemToRent[_offerId].nftId) >= 1, "The marketplace has not enough NFT");
+        require(
+            _offerId >= 1 &&
+            _offerId <= nbOfferRent.current() &&
+            marketItemToRent[_offerId].offerId == _offerId,
+            "Invalid offer"
+        );
+        require(msg.value >= marketItemToRent[_offerId].price, "Invalid value send");
+        require(
+            nftContract.balanceOf(address(this), marketItemToRent[_offerId].nftId) >= 1,
+            "Insufficient NFT balance"
+        );
 
         uint256 nftId = marketItemToRent[_offerId].nftId;
-        (address authorAddress, uint256 royaltyPer) = nftContract.royaltyInfo(nftId, msg.value );
-        //                = (msg.value * platformFee / deno);
-        uint256 marketFee = ((msg.value * platformFee) / deno);
+        (address authorAddress, uint256 royaltyPer) = nftContract.royaltyInfo(nftId, msg.value);
+        uint256 marketFee = (msg.value * PLATFORM_FEE) / DENO;
         address payable renter = marketItemToRent[_offerId].renter;
 
-        // Price without royalty and fee
-        (bool sent, bytes memory data) = renter.call{value: (((msg.value - royaltyPer) - marketFee))}("");
-        require(sent, "Failed to send fee to renter");
-
-        // Royalties for Author
-        (sent, data) = payable(authorAddress).call{value: royaltyPer}("");
-        require(sent, "Failed to send fee to author");
-
-        // Market place
-        (sent, data) = marketPlace.call{value: marketFee}("");
-        require(sent, "Failed to send fee to marketplace");
+        _processPayments(renter, authorAddress, msg.value - royaltyPer - marketFee, royaltyPer, marketFee);
 
         marketItemToRent[_offerId].tenant = payable(msg.sender);
-
         uint256 end = marketItemToRent[_offerId].end;
 
-        if(nbOfferRent.current() > 1){
-            //delete actual rent offer with the last one
+        if(nbOfferRent.current() > 1) {
             marketItemToRent[_offerId] = marketItemToRent[nbOfferRent.current()];
         }
         nbOfferRent.decrement();
 
-        //Create the rent contract
-        rentContract rentingContract = new rentContract(address(nftContract), nftId, renter, msg.sender, end);
+        rentContract rentingContract = new rentContract(
+            address(nftContract),
+            nftId,
+            renter,
+            msg.sender,
+            end
+        );
         
-        //Send the NFT to the contract
         nftContract.safeTransferFrom(address(this), address(rentingContract), nftId, 1, "");
-
-        //Start the rent (and transfer one NFT)
         uint256 blockend = rentingContract.startRent();
 
         emit NFTRent(_offerId, nftId, msg.sender, address(rentingContract), blockend);
     }
 
+    function _processPayments(
+        address payable recipient,
+        address authorAddress,
+        uint256 amount,
+        uint256 royalty,
+        uint256 fee
+    ) private {
+        (bool sent,) = recipient.call{value: amount}("");
+        require(sent, "Failed to send payment to recipient");
+        
+        (sent,) = payable(authorAddress).call{value: royalty}("");
+        require(sent, "Failed to send royalty");
+        
+        (sent,) = marketPlace.call{value: fee}("");
+        require(sent, "Failed to send marketplace fee");
+    }
 
     event rentOfferCancel(uint256 offerId);
 

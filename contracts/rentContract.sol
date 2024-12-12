@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 /// @author nicokacz
 /// @notice Manages the rental of NFTs with time-based constraints
 /// @dev Implements reentrancy protection and ownership functionality
-contract RentContract is ERC1155Holder, Ownable, ReentrancyGuard {
+contract rentContract is ERC1155Holder, Ownable, ReentrancyGuard {
     // State variables
     ebookNFT public immutable nftContract;
     uint256 public blockend;
